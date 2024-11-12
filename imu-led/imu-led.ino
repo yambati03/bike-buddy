@@ -3,8 +3,8 @@
 
 #define LED_COUNT  16      // Number of LEDs in the ring
 
-Adafruit_NeoPixel ring1(LED_COUNT, 9, NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel ring2(LED_COUNT, 10, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel left_ring(LED_COUNT, 9, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel right_ring(LED_COUNT, 10, NEO_GRB + NEO_KHZ800);
 
 float RateRoll, RatePitch, RateYaw;
 float AccX, AccY, AccZ;
@@ -27,8 +27,22 @@ enum SystemState {
 
 SystemState state = IDLE;
 
-int JOY_X_PIN = A0;
-int JOY_Y_PIN = A1;
+int JOY_X_PIN = A15;
+int JOY_Y_PIN = A14;
+
+uint32_t no_color = left_ring.Color(0, 0, 0);
+uint32_t dim_yellow = left_ring.Color(10, 10, 0);
+
+
+int LEFT_BLINK_START = 8;
+int LEFT_BLINK_END = 16;
+int RIGHT_BLINK_START = 0;
+int RIGHT_BLINK_END = 8;
+
+int LEFT_BRAKE_START = 0;
+int LEFT_BRAKE_END = 8;
+int RIGHT_BRAKE_START = 8;
+int RIGHT_BRAKE_END = 16;
 
 
 void gyro_signals(void) {
@@ -88,8 +102,8 @@ void setup() {
   Wire.write(0x00);
   Wire.endTransmission();
 
-  ring1.begin();
-  ring2.begin();  
+  left_ring.begin();
+  right_ring.begin();  
 }
 
 JoyState get_joy_state() {
@@ -129,7 +143,9 @@ const long blinkIntervalMillis = 500; // in mills
 bool isBlinkOn = false;  
 
 void loop() {
+  // Sensor Readings
   JoyState joy_state = get_joy_state();
+  gyro_signals();
 
 
   /*
@@ -145,6 +161,9 @@ void loop() {
   - RIGHT_BLINK, DOWN, IDLE; 
   - RIGHT_BLINK, LEFT, LEFT_BLINK
   */
+
+
+
   switch (state) {
     case IDLE:
       if (joy_state == LEFT) {
@@ -171,10 +190,19 @@ void loop() {
       break;
   }
 
-  updateBlinking();
+  updateTurnSignals();
+  updateBrakeLights(.1);
 }
 
-void updateBlinking() {
+// pass in ring 
+
+void set_light(Adafruit_NeoPixel& light, int start, int end, uint32_t color) {
+  light.fill(color, start, end);
+  light.show();
+}
+
+void updateTurnSignals() {
+
   unsigned long currentMillis = millis();
 
   if (currentMillis - previousMillis >= blinkIntervalMillis) {
@@ -182,53 +210,24 @@ void updateBlinking() {
     isBlinkOn = !isBlinkOn; 
 
     if (state == LEFT_BLINK) {
-      // make sure to turn off right LED;
-      ring2.clear();
-      ring2.show();
-      if (isBlinkOn) {
-        ring1.fill(ring1.Color(1, 0, 0), 0, LED_COUNT); 
-      } else {
-        ring1.clear(); 
-      }
-      ring1.show();
+      set_light(right_ring, RIGHT_BLINK_START, RIGHT_BLINK_END, no_color);
+      set_light(left_ring, LEFT_BLINK_START, LEFT_BLINK_END, isBlinkOn ? dim_yellow : no_color);
     } else if (state == RIGHT_BLINK) {
-      // make sure to turn off left LED;
-      ring1.clear();
-      ring1.show();
-      if (isBlinkOn) {
-        ring2.fill(ring2.Color(1, 0, 0), 0, LED_COUNT);
-      } else {
-        ring2.clear();
-      }
-      ring2.show();
+      // turn off left turn signal
+      set_light(left_ring, LEFT_BLINK_START, LEFT_BLINK_END, no_color);
+      set_light(right_ring, RIGHT_BLINK_START, RIGHT_BLINK_END, isBlinkOn ? dim_yellow : no_color);
     } else {
-      // turn off both rings if not in a blinking state
-      ring1.clear();
-      ring2.clear();
-      ring1.show();
-      ring2.show();
+      set_light(right_ring, RIGHT_BLINK_START, RIGHT_BLINK_END, no_color);
+      set_light(left_ring, LEFT_BLINK_START, LEFT_BLINK_END, no_color);
     }
   }
 
-
-  // gyro_signals();
-  // Serial.print("Acceleration X [g]= ");
-  // Serial.print(AccX);
-  // Serial.print(" Acceleration Y [g]= ");
-  // Serial.print(AccY);
-  // Serial.print(" Acceleration Z [g]= ");
-  // Serial.println(AccZ);
-
-  
-
-  
-
-  // if (AccY < 0) {
-  //   ring1.fill(ring1.Color(255, 0, 0), 0, LED_COUNT);
-  // } else {
-  //   ring1.clear();
-  // // }
-  // ring1.show();
-
-  // delay(50);
 }
+
+void updateBrakeLights(double light_intensity) {
+
+  uint32_t color = left_ring.Color(255 * light_intensity, 0, 0);
+  set_light(left_ring, LEFT_BRAKE_START, LEFT_BRAKE_END, color);
+  set_light(right_ring, RIGHT_BRAKE_START, RIGHT_BRAKE_END, color);
+}
+
