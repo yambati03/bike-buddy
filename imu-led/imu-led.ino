@@ -8,6 +8,9 @@
 Adafruit_NeoPixel left_ring(LED_COUNT, 9, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel right_ring(LED_COUNT, 10, NEO_GRB + NEO_KHZ800);
 
+double accx_buffer[100] = {0.0};
+int accx_buffer_index = 0;
+
 float RateRoll, RatePitch, RateYaw;
 float AccX, AccY, AccZ;
 float AccX_no_gravity, AccY_no_gravity, AccZ_no_gravity;
@@ -187,13 +190,31 @@ void loop() {
   }
 
   updateTurnSignals();
-  Serial.println(AccX_no_gravity);
+  // Serial.println(AccX_no_gravity);
 
-  if (AccX_no_gravity < -1) {
-    updateBrakeLights(abs(AccX_no_gravity / 9.81));
+  accx_buffer[accx_buffer_index] = AccX_no_gravity;
+  accx_buffer_index = (accx_buffer_index + 1) % 100;
+
+  double sum = 0;
+  for (int i = 0; i < 100; i++) {
+    sum += accx_buffer[i];
+  }
+  double avg = sum / 100;
+
+  Serial.println(avg);
+
+  if (avg < -1) {
+    updateBrakeLights(abs(avg / 9.81));
   } else {
     updateBrakeLights(0.0);
   }
+
+
+    // if (AccX_no_gravity < -1) {
+  //   updateBrakeLights(abs(AccX_no_gravity / 9.81));
+  // } else {
+  //   updateBrakeLights(0.0);
+// }
 }
 
 // pass in ring 
