@@ -4,9 +4,13 @@
 #define LED_COUNT  16      // Number of LEDs in the ring
 #define G_MSS 9.81
 #define M_PI 3.14159
+#define BUFF_SIZE 80
 
 Adafruit_NeoPixel left_ring(LED_COUNT, 9, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel right_ring(LED_COUNT, 10, NEO_GRB + NEO_KHZ800);
+
+double accx_buffer[BUFF_SIZE] = {0.0};
+int accx_buffer_index = 0;
 
 float RateRoll, RatePitch, RateYaw;
 float AccX, AccY, AccZ;
@@ -36,6 +40,8 @@ int JOY_Y_PIN = A14;
 uint32_t no_color = left_ring.Color(0, 0, 0);
 uint32_t dim_yellow = left_ring.Color(10, 10, 0);
 
+bool turnStarted = false;
+unsigned long turnTime = millis();
 
 int LEFT_BLINK_START = 8;
 int LEFT_BLINK_END = 16;
@@ -85,16 +91,20 @@ void gyro_signals(void) {
 
   AccX=-(float)AccXLSB/4096;
   AccY=-(float)AccYLSB/4096;
-  AccZ=(float)AccZLSB/4096;
+  AccZ=-(float)AccZLSB/4096;
 
   AngleRoll=-atan(AccY/sqrt(AccX*AccX+AccZ*AccZ));
   AnglePitch=atan(AccX/sqrt(AccY*AccY+AccZ*AccZ));
 
-  AccX_no_gravity = AccX - sin(AnglePitch); // AccX - sin(AnglePitch);
+  AccX_no_gravity = AccX - sin(AnglePitch);
   AccY_no_gravity = AccY + sin(AngleRoll) * cos(AnglePitch);
-  AccZ_no_gravity = AccZ - cos(AngleRoll) * cos(AnglePitch);
+  AccZ_no_gravity = AccZ + cos(AngleRoll) * cos(AnglePitch);
 
-  AccX_no_gravity = AccX_no_gravity * G_MSS; // AccX_no_gravity * G_MSS;
+  // Serial.print(AnglePitch);
+  // Serial.print(" ");
+  // Serial.println(AngleRoll);
+
+  AccX_no_gravity = AccX_no_gravity * G_MSS;
   AccY_no_gravity = AccY_no_gravity * G_MSS;
   AccZ_no_gravity = AccZ_no_gravity * G_MSS;
 }
@@ -122,7 +132,6 @@ JoyState get_joy_state() {
   int x_diff = abs(joy_x - 524);
   int y_diff = abs(joy_y - 524);
 
-
   // check if there is movement in the X direction.
   if (x_diff > y_diff){
     if (joy_x < 100) {
@@ -147,7 +156,6 @@ bool isBlinkOn = false;
 void loop() {
   JoyState joy_state = get_joy_state();
   gyro_signals();
-
 
   /*
   Transitions:
@@ -186,17 +194,44 @@ void loop() {
       break;
   }
 
-  updateTurnSignals();
-  Serial.println(AccX_no_gravity);
+  if (state == LEFT_BLINK || state == RIGHT_BLINK) {
+    if (turnStarted) {
+      if (millis() - turnTime > 250 && abs(RateYaw) < 100) {
+        turnStarted = false;
+        state = IDLE;
+      }
+    }
 
-  if (AccX_no_gravity < -1) {
-    updateBrakeLights(abs(AccX_no_gravity / 9.81));
+    if (RateYaw < -100 && state == LEFT_BLINK) {
+      turnStarted = true;
+      turnTime = millis();
+    }
+
+    if (RateYaw > 100 && state == RIGHT_BLINK) {
+      turnStarted = true;
+      turnTime = millis();
+    }
+  }
+
+  updateTurnSignals();
+
+  accx_buffer[accx_buffer_index] = AccY_no_gravity;
+  accx_buffer_index = (accx_buffer_index + 1) % BUFF_SIZE;
+
+  double sum = 0;
+  for (int i = 0; i < BUFF_SIZE; i++) {
+    sum += accx_buffer[i];
+  }
+  double avg = sum / BUFF_SIZE;
+
+  // Serial.println(avg);
+
+  if (avg < -0.05) {
+    updateBrakeLights(0.1);
   } else {
     updateBrakeLights(0.0);
   }
 }
-
-// pass in ring 
 
 void set_light(Adafruit_NeoPixel& light, int start, int end, uint32_t color) {
   light.fill(color, start, end);
@@ -204,7 +239,6 @@ void set_light(Adafruit_NeoPixel& light, int start, int end, uint32_t color) {
 }
 
 void updateTurnSignals() {
-
   unsigned long currentMillis = millis();
 
   if (currentMillis - previousMillis >= blinkIntervalMillis) {
@@ -223,7 +257,6 @@ void updateTurnSignals() {
       set_light(left_ring, LEFT_BLINK_START, LEFT_BLINK_END, no_color);
     }
   }
-
 }
 
 void updateBrakeLights(double light_intensity) {
