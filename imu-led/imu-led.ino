@@ -143,9 +143,13 @@ JoyState get_joy_state() {
   return CENTER;
 }
 
+
+
 unsigned long previousMillis = 0; 
 const long blinkIntervalMillis = 500; // in mills
 bool isBlinkOn = false;  
+bool turnStarted = false;
+unsigned long turnTime = millis();
 
 void loop() {
   JoyState joy_state = get_joy_state();
@@ -167,6 +171,7 @@ void loop() {
     case IDLE:
       if (joy_state == LEFT) {
         state = LEFT_BLINK;
+        turnStarted = false;
       } else if (joy_state == RIGHT) {
         state = RIGHT_BLINK;
       }
@@ -187,6 +192,26 @@ void loop() {
         state = LEFT_BLINK;
       }
       break;
+  }
+
+  Serial.println(RateYaw);
+
+  if (state == LEFT_BLINK) {
+
+    if (turnStarted) {
+      if (millis() - turnTime > 250 && abs(RateYaw) < 100) {
+        state = IDLE;
+      }
+    }
+
+    if (abs(RateYaw) > 100) {
+      turnStarted = true;
+      turnTime = millis();
+    }
+
+    // record gyro values
+
+  
   }
 
   updateTurnSignals();
