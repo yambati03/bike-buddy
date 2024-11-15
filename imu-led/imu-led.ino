@@ -40,6 +40,8 @@ int JOY_Y_PIN = A14;
 uint32_t no_color = left_ring.Color(0, 0, 0);
 uint32_t dim_yellow = left_ring.Color(10, 10, 0);
 
+bool turnStarted = false;
+unsigned long turnTime = millis();
 
 int LEFT_BLINK_START = 8;
 int LEFT_BLINK_END = 16;
@@ -190,6 +192,25 @@ void loop() {
         state = LEFT_BLINK;
       }
       break;
+  }
+
+  if (state == LEFT_BLINK || state == RIGHT_BLINK) {
+    if (turnStarted) {
+      if (millis() - turnTime > 250 && abs(RateYaw) < 100) {
+        turnStarted = false;
+        state = IDLE;
+      }
+    }
+
+    if (RateYaw < -100 && state == LEFT_BLINK) {
+      turnStarted = true;
+      turnTime = millis();
+    }
+
+    if (RateYaw > 100 && state == RIGHT_BLINK) {
+      turnStarted = true;
+      turnTime = millis();
+    }
   }
 
   updateTurnSignals();
