@@ -17,7 +17,7 @@ def main():
         # save data to file
         with open(f"data{file_time}.csv", "a") as f:
             f.write(
-                f"{time.time(), gyro_data['x'], gyro_data['y'], gyro_data['z'], accel_data['x'], accel_data['y'], accel_data['z']}\n"
+                f"{time.time()},{gyro_data['x']},{gyro_data['y']},{gyro_data['z']},{accel_data['x']},{accel_data['y']},{accel_data['z']}\n"
             )
 
 
