@@ -14,3 +14,7 @@ def main():
         print(f"Accel: {accel_data}, Gyro: {gyro_data}")
 
         # time.sleep(1)
+
+
+if __name__ == "__main__":
+    main()
