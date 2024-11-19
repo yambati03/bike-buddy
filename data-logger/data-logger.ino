@@ -16,7 +16,7 @@ void gyro_signals(void) {
   Wire.endTransmission();
   Wire.beginTransmission(0x68);
   Wire.write(0x1C);
-  Wire.write(0x10);
+  Wire.write(0x00);
   Wire.endTransmission();
   Wire.beginTransmission(0x68);
   Wire.write(0x3B);
@@ -29,7 +29,7 @@ void gyro_signals(void) {
 
   Wire.beginTransmission(0x68);
   Wire.write(0x1B);
-  Wire.write(0x8);
+  Wire.write(0x00);
   Wire.endTransmission();
   Wire.beginTransmission(0x68);
   Wire.write(0x43);
@@ -40,13 +40,13 @@ void gyro_signals(void) {
   int16_t GyroY = Wire.read() << 8 | Wire.read();
   int16_t GyroZ = Wire.read() << 8 | Wire.read();
 
-  RateRoll = (float)GyroX / 65.5;
-  RatePitch = (float)GyroY / 65.5;
-  RateYaw = (float)GyroZ / 65.5;
+  RateRoll = (float)GyroX / 131;
+  RatePitch = (float)GyroY / 131;
+  RateYaw = (float)GyroZ / 131;
 
-  AccX = -(float)AccXLSB / 4096;
-  AccY = -(float)AccYLSB / 4096;
-  AccZ = -(float)AccZLSB / 4096;
+  AccX = -(float)AccXLSB / 16384;
+  AccY = -(float)AccYLSB / 16384;
+  AccZ = -(float)AccZLSB / 16384;
 
   AngleRoll = -atan(AccY / sqrt(AccX * AccX + AccZ * AccZ));
   AnglePitch = atan(AccX / sqrt(AccY * AccY + AccZ * AccZ));

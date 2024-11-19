@@ -15,7 +15,7 @@ if __name__ == "__main__":
     try:
         print(int(time.time()))
         read_serial_data(
-            "/dev/cu.usbmodem11301", 57600, int(time.time())
+            "/dev/cu.usbmodem1301", 57600, int(time.time())
         )  # Adjust the port and baudrate as necessary
     except KeyboardInterrupt:
         print("Exiting...")
