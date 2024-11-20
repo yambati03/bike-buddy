@@ -25,6 +25,7 @@ def main():
             print(f"Switch flipped, new file: data{file_time}.csv")
             while GPIO.input(23):
                 time.sleep(0.1)
+            print("Ready to record data")
 
         accel_data = imu.get_accel_data()
         gyro_data = imu.get_gyro_data()
