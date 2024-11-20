@@ -6,7 +6,7 @@ import time
 
 def main():
 
-    GPIO.setmode(GPIO.BCM)
+    GPIO.setmode(GPIO.BOARD)
     GPIO.setup(25, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
     imu = mpu6050(0x68)
