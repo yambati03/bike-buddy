@@ -16,8 +16,6 @@ def main():
     imu.set_gyro_range(mpu6050.GYRO_RANGE_250DEG)
     file_time = int(time.time())
 
-    print(file_time)
-
     while True:
 
         if GPIO.input(23):
