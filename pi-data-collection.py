@@ -1,8 +1,13 @@
+import RPi.GPIO as GPIO
+
 from mpu6050 import mpu6050
 import time
 
 
 def main():
+
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(23, GPIO.IN)
 
     imu = mpu6050(0x68)
     # set low pass filter
@@ -14,6 +19,12 @@ def main():
     print(file_time)
 
     while True:
+
+        if GPIO.input(23):
+            file_time = int(time.time())
+            print(f"Switch flipped, new file: data{file_time}.csv")
+            while GPIO.input(23):
+                time.sleep(0.1)
 
         accel_data = imu.get_accel_data()
         gyro_data = imu.get_gyro_data()
