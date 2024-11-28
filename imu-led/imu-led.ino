@@ -1,24 +1,29 @@
 #include <Adafruit_NeoPixel.h>
 #include <Wire.h>
 
-#define LED_COUNT  16      // Number of LEDs in the ring
+#define LED_COUNT 16 // Number of LEDs in the ring
 #define G_MSS 9.81
 #define M_PI 3.14159
-#define BUFF_SIZE 80
+#define BUFF_SIZE 100
 
 Adafruit_NeoPixel left_ring(LED_COUNT, 9, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel right_ring(LED_COUNT, 10, NEO_GRB + NEO_KHZ800);
 
 double accx_buffer[BUFF_SIZE] = {0.0};
+double accy_buffer[BUFF_SIZE] = {0.0};
+double accz_buffer[BUFF_SIZE] = {0.0};
+
 int accx_buffer_index = 0;
+int accy_buffer_index = 0;
+int accz_buffer_index = 0;
 
 float RateRoll, RatePitch, RateYaw;
 float AccX, AccY, AccZ;
-float AccX_no_gravity, AccY_no_gravity, AccZ_no_gravity;
 float AngleRoll, AnglePitch;
-float LoopTimer;
+float AccXSmoothed, AccYSmoothed, AccZSmoothed;
 
-enum JoyState {
+enum JoyState
+{
   UP,
   DOWN,
   LEFT,
@@ -26,7 +31,8 @@ enum JoyState {
   CENTER
 };
 
-enum SystemState {
+enum SystemState
+{
   LEFT_BLINK,
   RIGHT_BLINK,
   IDLE
@@ -53,107 +59,134 @@ int LEFT_BRAKE_END = 8;
 int RIGHT_BRAKE_START = 8;
 int RIGHT_BRAKE_END = 16;
 
+double get_buffer_avg(double *buffer)
+{
+  double sum = 0;
+  for (int i = 0; i < BUFF_SIZE; i++)
+  {
+    sum += buffer[i];
+  }
+  return sum / BUFF_SIZE;
+}
 
-void gyro_signals(void) {
+void gyro_signals(void)
+{
   Wire.beginTransmission(0x68);
   Wire.write(0x1A);
   Wire.write(0x05);
   Wire.endTransmission();
+
   Wire.beginTransmission(0x68);
   Wire.write(0x1C);
-  Wire.write(0x10);
+  Wire.write(0x00);
   Wire.endTransmission();
+
   Wire.beginTransmission(0x68);
   Wire.write(0x3B);
-  Wire.endTransmission(); 
-  Wire.requestFrom(0x68,6);
+  Wire.endTransmission();
 
+  Wire.requestFrom(0x68, 6);
   int16_t AccXLSB = Wire.read() << 8 | Wire.read();
   int16_t AccYLSB = Wire.read() << 8 | Wire.read();
   int16_t AccZLSB = Wire.read() << 8 | Wire.read();
 
   Wire.beginTransmission(0x68);
-  Wire.write(0x1B); 
-  Wire.write(0x8);
-  Wire.endTransmission();                                                   
+  Wire.write(0x1B);
+  Wire.write(0x00);
+  Wire.endTransmission();
+
   Wire.beginTransmission(0x68);
   Wire.write(0x43);
   Wire.endTransmission();
-  Wire.requestFrom(0x68,6);
 
-  int16_t GyroX=Wire.read()<<8 | Wire.read();
-  int16_t GyroY=Wire.read()<<8 | Wire.read();
-  int16_t GyroZ=Wire.read()<<8 | Wire.read();
+  Wire.requestFrom(0x68, 6);
+  int16_t GyroX = Wire.read() << 8 | Wire.read();
+  int16_t GyroY = Wire.read() << 8 | Wire.read();
+  int16_t GyroZ = Wire.read() << 8 | Wire.read();
 
-  RateRoll=(float)GyroX/65.5;
-  RatePitch=(float)GyroY/65.5;
-  RateYaw=(float)GyroZ/65.5;
+  RateRoll = (float)GyroX / 131.0;
+  RatePitch = (float)GyroY / 131.0;
+  RateYaw = (float)GyroZ / 131.0;
 
-  AccX=-(float)AccXLSB/4096;
-  AccY=-(float)AccYLSB/4096;
-  AccZ=-(float)AccZLSB/4096;
+  AccX = (float)AccXLSB * G_MSS / 16384.0;
+  AccY = (float)AccYLSB * G_MSS / 16384.0;
+  AccZ = (float)AccZLSB * G_MSS / 16384.0;
 
-  AngleRoll=-atan(AccY/sqrt(AccX*AccX+AccZ*AccZ));
-  AnglePitch=atan(AccX/sqrt(AccY*AccY+AccZ*AccZ));
+  AngleRoll = atan(AccY / sqrt(AccX * AccX + AccZ * AccZ));
+  AnglePitch = atan(AccX / sqrt(AccY * AccY + AccZ * AccZ));
 
-  AccX_no_gravity = AccX - sin(AnglePitch);
-  AccY_no_gravity = AccY + sin(AngleRoll) * cos(AnglePitch);
-  AccZ_no_gravity = AccZ + cos(AngleRoll) * cos(AnglePitch);
+  accx_buffer[accx_buffer_index] = AccX;
+  accx_buffer_index = (accx_buffer_index + 1) % BUFF_SIZE;
 
-  // Serial.print(AnglePitch);
-  // Serial.print(" ");
-  // Serial.println(AngleRoll);
+  accy_buffer[accy_buffer_index] = AccY;
+  accy_buffer_index = (accy_buffer_index + 1) % BUFF_SIZE;
 
-  AccX_no_gravity = AccX_no_gravity * G_MSS;
-  AccY_no_gravity = AccY_no_gravity * G_MSS;
-  AccZ_no_gravity = AccZ_no_gravity * G_MSS;
+  accz_buffer[accz_buffer_index] = AccZ;
+  accz_buffer_index = (accz_buffer_index + 1) % BUFF_SIZE;
+
+  AccXSmoothed = get_buffer_avg(accx_buffer);
+  AccYSmoothed = get_buffer_avg(accy_buffer);
+  AccZSmoothed = get_buffer_avg(accz_buffer);
 }
 
-void setup() {
+void setup()
+{
   Serial.begin(57600);
-  while (!Serial) { ; }
+  while (!Serial)
+  {
+    continue;
+  }
   Wire.setClock(400000);
   Wire.begin();
   delay(250);
 
-  Wire.beginTransmission(0x68); 
+  Wire.beginTransmission(0x68);
   Wire.write(0x6B);
   Wire.write(0x00);
   Wire.endTransmission();
 
   left_ring.begin();
-  right_ring.begin();  
+  right_ring.begin();
 }
 
-JoyState get_joy_state() {
-  // read joystick values and get next state.
+JoyState get_joy_state()
+{
   int joy_x = analogRead(JOY_X_PIN);
   int joy_y = analogRead(JOY_Y_PIN);
   int x_diff = abs(joy_x - 524);
   int y_diff = abs(joy_y - 524);
 
-  // check if there is movement in the X direction.
-  if (x_diff > y_diff){
-    if (joy_x < 100) {
+  if (x_diff > y_diff)
+  {
+    if (joy_x < 100)
+    {
       return LEFT;
-    } else if (joy_x > 900) {
+    }
+    else if (joy_x > 900)
+    {
       return RIGHT;
     }
-  } else {
-    if (joy_y < 100) {
+  }
+  else
+  {
+    if (joy_y < 100)
+    {
       return UP;
-    } else if (joy_y > 800) {
+    }
+    else if (joy_y > 800)
+    {
       return DOWN;
     }
   }
   return CENTER;
 }
 
-unsigned long previousMillis = 0; 
+unsigned long previousMillis = 0;
 const long blinkIntervalMillis = 500; // in mills
-bool isBlinkOn = false;  
+bool isBlinkOn = false;
 
-void loop() {
+void loop()
+{
   JoyState joy_state = get_joy_state();
   gyro_signals();
 
@@ -162,52 +195,67 @@ void loop() {
   -- Current System State, JoyState, Next System State
   - IDLE, LEFT, LEFT_BLINK;
   - IDLE, RIGHT, RIGHT_BLINK;
-  - LEFT_BLINK, DOWN, IDLE; 
+  - LEFT_BLINK, DOWN, IDLE;
   - LEFT_BLINK, RIGHT, RIGHT_BLINK,
-  - RIGHT_BLINK, DOWN, IDLE; 
+  - RIGHT_BLINK, DOWN, IDLE;
   - RIGHT_BLINK, LEFT, LEFT_BLINK
   */
 
-  switch (state) {
-    case IDLE:
-      if (joy_state == LEFT) {
-        state = LEFT_BLINK;
-      } else if (joy_state == RIGHT) {
-        state = RIGHT_BLINK;
-      }
-      break;
+  switch (state)
+  {
+  case IDLE:
+    if (joy_state == LEFT)
+    {
+      state = LEFT_BLINK;
+    }
+    else if (joy_state == RIGHT)
+    {
+      state = RIGHT_BLINK;
+    }
+    break;
 
-    case LEFT_BLINK:
-      if (joy_state == DOWN) {
-        state = IDLE;
-      } else if (joy_state == RIGHT) {
-        state = RIGHT_BLINK;
-      }
-      break;
+  case LEFT_BLINK:
+    if (joy_state == DOWN)
+    {
+      state = IDLE;
+    }
+    else if (joy_state == RIGHT)
+    {
+      state = RIGHT_BLINK;
+    }
+    break;
 
-    case RIGHT_BLINK:
-      if (joy_state == DOWN) {
-        state = IDLE;
-      } else if (joy_state == LEFT) {
-        state = LEFT_BLINK;
-      }
-      break;
+  case RIGHT_BLINK:
+    if (joy_state == DOWN)
+    {
+      state = IDLE;
+    }
+    else if (joy_state == LEFT)
+    {
+      state = LEFT_BLINK;
+    }
+    break;
   }
 
-  if (state == LEFT_BLINK || state == RIGHT_BLINK) {
-    if (turnStarted) {
-      if (millis() - turnTime > 250 && abs(RateYaw) < 100) {
+  if (state == LEFT_BLINK || state == RIGHT_BLINK)
+  {
+    if (turnStarted)
+    {
+      if (millis() - turnTime > 250 && abs(RateYaw) < 100)
+      {
         turnStarted = false;
         state = IDLE;
       }
     }
 
-    if (RateYaw < -100 && state == LEFT_BLINK) {
+    if (RateYaw < -100 && state == LEFT_BLINK)
+    {
       turnStarted = true;
       turnTime = millis();
     }
 
-    if (RateYaw > 100 && state == RIGHT_BLINK) {
+    if (RateYaw > 100 && state == RIGHT_BLINK)
+    {
       turnStarted = true;
       turnTime = millis();
     }
@@ -215,53 +263,52 @@ void loop() {
 
   updateTurnSignals();
 
-  accx_buffer[accx_buffer_index] = AccY_no_gravity;
-  accx_buffer_index = (accx_buffer_index + 1) % BUFF_SIZE;
-
-  double sum = 0;
-  for (int i = 0; i < BUFF_SIZE; i++) {
-    sum += accx_buffer[i];
-  }
-  double avg = sum / BUFF_SIZE;
-
-  // Serial.println(avg);
-
-  if (avg < -0.05) {
+  if (AccYSmoothed * cos(AngleRoll) - AccZSmoothed * sin(AngleRoll) < -0.05)
+  {
     updateBrakeLights(0.1);
-  } else {
+  }
+  else
+  {
     updateBrakeLights(0.0);
   }
 }
 
-void set_light(Adafruit_NeoPixel& light, int start, int end, uint32_t color) {
+void set_light(Adafruit_NeoPixel &light, int start, int end, uint32_t color)
+{
   light.fill(color, start, end);
   light.show();
 }
 
-void updateTurnSignals() {
+void updateTurnSignals()
+{
   unsigned long currentMillis = millis();
 
-  if (currentMillis - previousMillis >= blinkIntervalMillis) {
+  if (currentMillis - previousMillis >= blinkIntervalMillis)
+  {
     previousMillis = currentMillis;
-    isBlinkOn = !isBlinkOn; 
+    isBlinkOn = !isBlinkOn;
 
-    if (state == LEFT_BLINK) {
+    if (state == LEFT_BLINK)
+    {
       set_light(right_ring, RIGHT_BLINK_START, RIGHT_BLINK_END, no_color);
       set_light(left_ring, LEFT_BLINK_START, LEFT_BLINK_END, isBlinkOn ? dim_yellow : no_color);
-    } else if (state == RIGHT_BLINK) {
-      // turn off left turn signal
+    }
+    else if (state == RIGHT_BLINK)
+    {
       set_light(left_ring, LEFT_BLINK_START, LEFT_BLINK_END, no_color);
       set_light(right_ring, RIGHT_BLINK_START, RIGHT_BLINK_END, isBlinkOn ? dim_yellow : no_color);
-    } else {
+    }
+    else
+    {
       set_light(right_ring, RIGHT_BLINK_START, RIGHT_BLINK_END, no_color);
       set_light(left_ring, LEFT_BLINK_START, LEFT_BLINK_END, no_color);
     }
   }
 }
 
-void updateBrakeLights(double light_intensity) {
+void updateBrakeLights(double light_intensity)
+{
   uint32_t color = left_ring.Color(255 * light_intensity, 0, 0);
   set_light(left_ring, LEFT_BRAKE_START, LEFT_BRAKE_END, color);
   set_light(right_ring, RIGHT_BRAKE_START, RIGHT_BRAKE_END, color);
 }
-
