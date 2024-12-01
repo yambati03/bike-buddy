@@ -6,8 +6,8 @@
 #define M_PI 3.14159
 #define BUFF_SIZE 100
 
-Adafruit_NeoPixel left_ring(LED_COUNT, 9, NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel right_ring(LED_COUNT, 10, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel left_ring(LED_COUNT, 37, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel right_ring(LED_COUNT, 39, NEO_GRB + NEO_KHZ800);
 
 double accx_buffer[BUFF_SIZE] = {0.0};
 double accy_buffer[BUFF_SIZE] = {0.0};
@@ -40,8 +40,8 @@ enum SystemState
 
 SystemState state = IDLE;
 
-int JOY_X_PIN = A15;
-int JOY_Y_PIN = A14;
+int JOY_X_PIN = A0;
+int JOY_Y_PIN = A1;
 
 uint32_t no_color = left_ring.Color(0, 0, 0);
 uint32_t dim_yellow = left_ring.Color(10, 10, 0);
@@ -49,13 +49,15 @@ uint32_t dim_yellow = left_ring.Color(10, 10, 0);
 bool turnStarted = false;
 unsigned long turnTime = millis();
 
-int LEFT_BLINK_START = 8;
-int LEFT_BLINK_END = 16;
+int LEFT_BLINK_START = 0;
+int LEFT_BLINK_END = 8;
+
+
 int RIGHT_BLINK_START = 0;
 int RIGHT_BLINK_END = 8;
 
-int LEFT_BRAKE_START = 0;
-int LEFT_BRAKE_END = 8;
+int LEFT_BRAKE_START = 8;
+int LEFT_BRAKE_END = 16;
 int RIGHT_BRAKE_START = 8;
 int RIGHT_BRAKE_END = 16;
 
@@ -113,7 +115,7 @@ void gyro_signals(void)
   AccZ = (float)AccZLSB * G_MSS / 16384.0;
 
   AngleRoll = atan(AccY / sqrt(AccX * AccX + AccZ * AccZ));
-  AnglePitch = atan(AccX / sqrt(AccY * AccY + AccZ * AccZ));
+  AnglePitch = atan(AccZ / sqrt(AccY * AccY + AccX * AccX));
 
   accx_buffer[accx_buffer_index] = AccX;
   accx_buffer_index = (accx_buffer_index + 1) % BUFF_SIZE;
@@ -241,20 +243,20 @@ void loop()
   {
     if (turnStarted)
     {
-      if (millis() - turnTime > 250 && abs(RateYaw) < 100)
+      if (millis() - turnTime > 250 && abs(RateRoll) < 25)
       {
         turnStarted = false;
         state = IDLE;
       }
     }
 
-    if (RateYaw < -100 && state == LEFT_BLINK)
+    if (RateRoll < -25 && state == LEFT_BLINK)
     {
       turnStarted = true;
       turnTime = millis();
     }
 
-    if (RateYaw > 100 && state == RIGHT_BLINK)
+    if (RateRoll > 25 && state == RIGHT_BLINK)
     {
       turnStarted = true;
       turnTime = millis();
@@ -263,7 +265,9 @@ void loop()
 
   updateTurnSignals();
 
-  if (AccYSmoothed * cos(AngleRoll) - AccZSmoothed * sin(AngleRoll) < -0.05)
+  Serial.println(RateRoll);
+  
+  if (AccYSmoothed * cos(54 * M_PI / 180) + AccXSmoothed * sin(54 * M_PI / 180) < -1)
   {
     updateBrakeLights(0.1);
   }
