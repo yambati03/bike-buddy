@@ -49,17 +49,22 @@ uint32_t dim_yellow = left_ring.Color(10, 10, 0);
 bool turnStarted = false;
 unsigned long turnTime = millis();
 
-int LEFT_BLINK_START = 0;
-int LEFT_BLINK_END = 8;
+int LEFT_BLINK_START = 2;
+int LEFT_BLINK_END = 10;
 
 
-int RIGHT_BLINK_START = 0;
-int RIGHT_BLINK_END = 8;
+int RIGHT_BLINK_START = 1;
+int RIGHT_BLINK_END = 9;
 
-int LEFT_BRAKE_START = 8;
-int LEFT_BRAKE_END = 16;
-int RIGHT_BRAKE_START = 8;
-int RIGHT_BRAKE_END = 16;
+int LEFT_BRAKE_START = 10;
+int LEFT_BRAKE_END = 2;
+int RIGHT_BRAKE_START = 9;
+int RIGHT_BRAKE_END = 1;
+
+
+int LEFT_STATUS_LED_PIN = 33;
+int BRAKE_STATUS_LED_PIN = 31;
+int RIGHT_STATUS_LED_PIN = 29;
 
 double get_buffer_avg(double *buffer)
 {
@@ -149,6 +154,12 @@ void setup()
 
   left_ring.begin();
   right_ring.begin();
+
+  pinMode(LEFT_STATUS_LED_PIN, OUTPUT);
+  pinMode(RIGHT_STATUS_LED_PIN, OUTPUT);
+  pinMode(BRAKE_STATUS_LED_PIN, OUTPUT);
+
+
 }
 
 JoyState get_joy_state()
@@ -264,8 +275,6 @@ void loop()
   }
 
   updateTurnSignals();
-
-  Serial.println(RateRoll);
   
   if (AccYSmoothed * cos(54 * M_PI / 180) + AccXSmoothed * sin(54 * M_PI / 180) < -1)
   {
@@ -279,7 +288,17 @@ void loop()
 
 void set_light(Adafruit_NeoPixel &light, int start, int end, uint32_t color)
 {
-  light.fill(color, start, end);
+  if (start > end) {
+
+    int count = 16 - start;
+    light.fill(color, start, count);
+    light.fill(color, 0, end);
+  } else {
+    int count = end - start;
+    light.fill(color, start, count);
+  }
+  
+
   light.show();
 }
 
@@ -295,17 +314,28 @@ void updateTurnSignals()
     if (state == LEFT_BLINK)
     {
       set_light(right_ring, RIGHT_BLINK_START, RIGHT_BLINK_END, no_color);
+      digitalWrite(RIGHT_STATUS_LED_PIN, 0);
+
       set_light(left_ring, LEFT_BLINK_START, LEFT_BLINK_END, isBlinkOn ? dim_yellow : no_color);
+      digitalWrite(LEFT_STATUS_LED_PIN, isBlinkOn);
     }
     else if (state == RIGHT_BLINK)
     {
       set_light(left_ring, LEFT_BLINK_START, LEFT_BLINK_END, no_color);
+      digitalWrite(LEFT_STATUS_LED_PIN, 0);
+
       set_light(right_ring, RIGHT_BLINK_START, RIGHT_BLINK_END, isBlinkOn ? dim_yellow : no_color);
+      digitalWrite(RIGHT_STATUS_LED_PIN, isBlinkOn);
+
     }
     else
     {
       set_light(right_ring, RIGHT_BLINK_START, RIGHT_BLINK_END, no_color);
       set_light(left_ring, LEFT_BLINK_START, LEFT_BLINK_END, no_color);
+      digitalWrite(LEFT_STATUS_LED_PIN, 0);
+      digitalWrite(RIGHT_STATUS_LED_PIN, 0);
+
+
     }
   }
 }
@@ -315,4 +345,5 @@ void updateBrakeLights(double light_intensity)
   uint32_t color = left_ring.Color(255 * light_intensity, 0, 0);
   set_light(left_ring, LEFT_BRAKE_START, LEFT_BRAKE_END, color);
   set_light(right_ring, RIGHT_BRAKE_START, RIGHT_BRAKE_END, color);
+  digitalWrite(BRAKE_STATUS_LED_PIN, light_intensity > 0);
 }
