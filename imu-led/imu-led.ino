@@ -44,7 +44,7 @@ int JOY_X_PIN = A0;
 int JOY_Y_PIN = A1;
 
 uint32_t no_color = left_ring.Color(0, 0, 0);
-uint32_t dim_yellow = left_ring.Color(10, 10, 0);
+uint32_t dim_yellow = left_ring.Color(255, 255, 0);
 
 bool turnStarted = false;
 unsigned long turnTime = millis();
@@ -278,7 +278,7 @@ void loop()
   
   if (AccYSmoothed * cos(54 * M_PI / 180) + AccXSmoothed * sin(54 * M_PI / 180) < -1)
   {
-    updateBrakeLights(0.1);
+    updateBrakeLights(1.0);
   }
   else
   {
